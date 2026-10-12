@@ -1,0 +1,46 @@
+# Optional containerised stack. On an 8 GB machine prefer scripts/start.sh (no Docker).
+# Memory limits are set so the stack cannot starve the host.
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: cevi
+      MYSQL_USER: cevi
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cevi_local_dev_pw}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change-me-root}
+    command: ["--performance-schema=OFF", "--innodb-buffer-pool-size=64M", "--max-connections=40"]
+    ports: ["127.0.0.1:3307:3306"]
+    volumes: [mysql-data:/var/lib/mysql]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-change-me-root}"]
+      interval: 5s
+      retries: 20
+
+  ml-service:
+    build: ./ml-service
+    ports: ["127.0.0.1:8001:8001"]
+    environment:
+      CEVI_WEIGHTS: ${CEVI_WEIGHTS:-imagenet}
+      CEVI_TORCH_THREADS: "2"
+    volumes: [torch-cache:/srv/.torch]
+    mem_limit: 1g
+
+  backend:
+    build: ./backend
+    depends_on:
+      mysql: { condition: service_healthy }
+    ports: ["127.0.0.1:4000:4000"]
+    environment:
+      DATABASE_URL: mysql://cevi:${MYSQL_PASSWORD:-cevi_local_dev_pw}@mysql:3306/cevi
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (>=32 chars) in a .env file next to docker-compose.yml}
+      ML_SERVICE_URL: http://ml-service:8001
+      CORS_ORIGIN: http://localhost:5173
+      STORAGE_DIR: /data/storage
+    volumes: [uploads:/data/storage]
+    mem_limit: 384m
+
+volumes:
+  mysql-data:
+  torch-cache:
+  uploads:

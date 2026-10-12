@@ -1,0 +1,238 @@
+// CEVI - Clinical Decision-Support research prototype.
+// All patient data is SYNTHETIC. Not for clinical use.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMINISTRATOR
+  CLINICIAN
+  RESEARCHER
+}
+
+enum Sex {
+  FEMALE
+  MALE
+  OTHER
+  UNKNOWN
+}
+
+enum CaseStatus {
+  ACTIVE
+  MONITORING
+  CLOSED
+}
+
+enum RecordType {
+  OBSERVATION
+  DIAGNOSTIC_NOTE
+  LAB_RESULT
+  PROCEDURE
+  FOLLOW_UP
+}
+
+enum Severity {
+  ROUTINE
+  ELEVATED
+  URGENT
+}
+
+enum ImageModality {
+  XRAY
+  CT
+  MRI
+  ULTRASOUND
+  DERMATOSCOPY
+  OTHER
+}
+
+enum ProcessingStatus {
+  UPLOADED
+  ANALYZING
+  ANALYZED
+  FAILED
+}
+
+enum AnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  UNAVAILABLE
+}
+
+// EXPERIMENTAL_INFERENCE: real forward pass through the model (general-purpose weights).
+// DEMONSTRATION: a recorded entry that carries no model output (clearly labelled in the UI).
+enum AnalysisMode {
+  EXPERIMENTAL_INFERENCE
+  DEMONSTRATION
+}
+
+// 1. Users -------------------------------------------------------------------
+model User {
+  id           String    @id @default(uuid()) @db.Char(36)
+  email        String    @unique @db.VarChar(191)
+  passwordHash String    @db.VarChar(100)
+  name         String    @db.VarChar(120)
+  role         Role      @default(CLINICIAN)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  patients        Patient[]
+  records         ClinicalRecord[]
+  revisions       ClinicalRecordRevision[]
+  images          MedicalImage[]
+  analyses        AnalysisResult[]
+  activities      ActivityLog[]
+
+  @@index([role])
+}
+
+// 2. Patients (synthetic) -----------------------------------------------------
+model Patient {
+  id             String     @id @default(uuid()) @db.Char(36)
+  syntheticId    String     @unique @db.VarChar(24) // e.g. SYN-000123
+  firstName      String     @db.VarChar(80)
+  lastName       String     @db.VarChar(80)
+  dateOfBirth    DateTime   @db.Date
+  sex            Sex        @default(UNKNOWN)
+  researchCohort String     @db.VarChar(80)
+  caseStatus     CaseStatus @default(ACTIVE)
+  summary        String?    @db.Text
+  isSynthetic    Boolean    @default(true)
+  createdById    String     @db.Char(36)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  records   ClinicalRecord[]
+  images    MedicalImage[]
+
+  @@index([lastName, firstName])
+  @@index([caseStatus])
+  @@index([researchCohort])
+  @@index([createdAt])
+}
+
+// 3. Clinical records ---------------------------------------------------------
+model ClinicalRecord {
+  id         String     @id @default(uuid()) @db.Char(36)
+  patientId  String     @db.Char(36)
+  authorId   String     @db.Char(36)
+  type       RecordType @default(OBSERVATION)
+  severity   Severity   @default(ROUTINE)
+  title      String     @db.VarChar(160)
+  content    String     @db.Text
+  recordedAt DateTime   @default(now())
+  version    Int        @default(1)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  patient   Patient                  @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  author    User                     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  revisions ClinicalRecordRevision[]
+
+  @@index([patientId, recordedAt])
+  @@index([authorId])
+  @@index([type])
+  @@index([severity])
+}
+
+// Supporting table: immutable history of each edit to a clinical record.
+model ClinicalRecordRevision {
+  id         String     @id @default(uuid()) @db.Char(36)
+  recordId   String     @db.Char(36)
+  version    Int
+  type       RecordType
+  severity   Severity
+  title      String     @db.VarChar(160)
+  content    String     @db.Text
+  editedById String     @db.Char(36)
+  createdAt  DateTime   @default(now())
+
+  record   ClinicalRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  editedBy User           @relation(fields: [editedById], references: [id], onDelete: Restrict)
+
+  @@unique([recordId, version])
+}
+
+// 4. Medical images (metadata only; bytes live in the storage abstraction) ----
+model MedicalImage {
+  id               String           @id @default(uuid()) @db.Char(36)
+  patientId        String           @db.Char(36)
+  uploadedById     String           @db.Char(36)
+  originalName     String           @db.VarChar(255)
+  storageKey       String           @unique @db.VarChar(191)
+  mimeType         String           @db.VarChar(60)
+  sizeBytes        Int
+  width            Int
+  height           Int
+  sha256           String           @db.Char(64)
+  modality         ImageModality    @default(OTHER)
+  description      String?          @db.VarChar(500)
+  processingStatus ProcessingStatus @default(UPLOADED)
+  isSynthetic      Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  patient    Patient          @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  uploadedBy User             @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  analyses   AnalysisResult[]
+
+  @@index([patientId, createdAt])
+  @@index([processingStatus])
+  @@index([sha256])
+}
+
+// 5. AI analysis results ------------------------------------------------------
+model AnalysisResult {
+  id               String         @id @default(uuid()) @db.Char(36)
+  imageId          String         @db.Char(36)
+  requestedById    String         @db.Char(36)
+  status           AnalysisStatus @default(PENDING)
+  mode             AnalysisMode   @default(EXPERIMENTAL_INFERENCE)
+  modelName        String?        @db.VarChar(80)
+  modelVersion     String?        @db.VarChar(80)
+  weightsSource    String?        @db.VarChar(160)
+  predictions      Json?
+  preprocessing    Json?
+  contextSnapshot  Json? // structured clinical-record context attached by the backend (never sent to the image model)
+  inferenceMs      Int?
+  totalMs          Int?
+  errorMessage     String?        @db.VarChar(500)
+  isSynthetic      Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  completedAt      DateTime?
+
+  image       MedicalImage @relation(fields: [imageId], references: [id], onDelete: Restrict)
+  requestedBy User         @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([imageId])
+  @@index([status, createdAt])
+  @@index([requestedById])
+  @@index([createdAt])
+}
+
+// Supporting table: audit / activity feed (also powers notifications).
+model ActivityLog {
+  id         String   @id @default(uuid()) @db.Char(36)
+  actorId    String?  @db.Char(36)
+  action     String   @db.VarChar(60)
+  entityType String   @db.VarChar(40)
+  entityId   String?  @db.Char(36)
+  summary    String   @db.VarChar(255)
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}

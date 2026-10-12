@@ -1,0 +1,67 @@
+@import '@fontsource-variable/inter';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 30% 97%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 214 88% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 94%;
+    --secondary-foreground: 222 47% 18%;
+    --muted: 214 32% 94%;
+    --muted-foreground: 215 16% 40%;
+    --accent: 214 60% 95%;
+    --accent-foreground: 214 88% 32%;
+    --teal: 174 72% 32%;
+    --teal-foreground: 0 0% 100%;
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 32 92% 38%;
+    --success: 152 62% 30%;
+    --border: 214 24% 89%;
+    --input: 214 24% 84%;
+    --ring: 214 88% 48%;
+    --sidebar: 222 55% 11%;
+    --sidebar-foreground: 214 30% 92%;
+    --sidebar-muted: 215 20% 66%;
+    --sidebar-border: 222 35% 20%;
+    --sidebar-active: 222 45% 19%;
+  }
+  .dark {
+    --background: 222 42% 7%;
+    --foreground: 214 30% 94%;
+    --card: 222 38% 10.5%;
+    --card-foreground: 214 30% 94%;
+    --primary: 213 94% 62%;
+    --primary-foreground: 222 55% 8%;
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 214 30% 92%;
+    --muted: 222 30% 15%;
+    --muted-foreground: 215 18% 68%;
+    --accent: 222 40% 18%;
+    --accent-foreground: 213 94% 74%;
+    --teal: 172 66% 50%;
+    --teal-foreground: 222 55% 8%;
+    --destructive: 0 80% 62%;
+    --destructive-foreground: 222 55% 8%;
+    --warning: 38 92% 58%;
+    --success: 152 58% 52%;
+    --border: 222 28% 19%;
+    --input: 222 28% 24%;
+    --ring: 213 94% 62%;
+    --sidebar: 222 50% 6%;
+    --sidebar-active: 222 40% 14%;
+    --sidebar-border: 222 30% 14%;
+  }
+  * { @apply border-border; }
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+  body { @apply bg-background text-foreground font-sans antialiased; font-feature-settings: 'cv11', 'ss01'; }
+  h1, h2, h3 { @apply tracking-tight; }
+  :focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
+}
